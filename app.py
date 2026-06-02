@@ -57,7 +57,7 @@ with head_col2:
 st.write("---")
 
 # --- คานรายการหุ้นโปรด (Quick Watchlist) ---
-st.write("⭐ **หุ้นโปรดเข้าดูด่วน (Quick Watchlist):**")
+st.write("⭐ **หุ้นโปรดทีสนใจ **")
 wl_cols = st.columns(6)
 wl_tickers = ["RKLB", "JNJ", "XOM", "ASTS", "AMZN", "MU"]
 clicked_ticker = None
@@ -68,7 +68,7 @@ for i, tkr in enumerate(wl_tickers):
             clicked_ticker = tkr
 
 # --- ช่องค้นหาเพิ่มเติม ---
-search_input = st.text_input("🔍 พิมพ์ชื่อตัวย่อหุ้นสากลหรือหุ้นไทยที่ต้องการค้นหา (เช่น TSLA, AAPL, RKLB, PTT.BK):", "RKLB")
+search_input = st.text_input("🔍 พิมพ์ชื่อตัวย่อหุ้นที่ต้องการค้นหา (เช่น TSLA, AAPL, RKLB, PTT.BK):", "RKLB")
 target_ticker = (clicked_ticker if clicked_ticker else search_input).upper().strip()
 
 # ดึงข้อมูลย้อนหลัง 1 ปี (มิ.ย. 2025 - มิ.ย. 2026)
