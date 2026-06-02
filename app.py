@@ -51,8 +51,8 @@ with head_col1:
     # แสดงโลโก้ (หากคุณมีไฟล์โลโก้ในเครื่อง สามารถเปลี่ยนเป็นชื่อไฟล์ของคุณ เช่น "logo.png" ได้เลยครับ)
     st.image("logo.png", width=65)
 with head_col2:
-    st.markdown("<h2 style='margin:0;'>DOOHUN <span style='font-weight:300; color:#6e7681;'>| Intelligent Stock Terminal vPro</span></h2>", unsafe_allow_html=True)
-    st.markdown("<p style='margin:0; color:#8b949e; font-size:14px;'>ดูหุ้น เข้าใจตลาด ทำกำไรได้มากกว่า</p>", unsafe_allow_html=True)
+    st.markdown("<h2 style='margin:0;'>DOOHUN <span style='font-weight:300; color:#6e7681;'>| ดูหุ้นกันที่รัก</span></h2>", unsafe_allow_html=True)
+    st.markdown("<p style='margin:0; color:#8b949e; font-size:14px;'>จะได้เก็บตังไปเที่ยวด้วยกัน ถึงจะไม่ได้ขายก็เถอะ</p>", unsafe_allow_html=True)
 
 st.write("---")
 
