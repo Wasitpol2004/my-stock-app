@@ -82,6 +82,9 @@ for i, tkr in enumerate(wl_tickers):
     with wl_cols[i]:
         if st.button(f"▫️ {tkr}", use_container_width=True):
             clicked_ticker = tkr
+            
+# ระบบจะดึง API Key จากเมนู Secrets ของ Streamlit Cloud มาใช้โดยอัตโนมัติ
+api_key = st.secrets.get("GEMINI_API_KEY")
 
 # --- ช่องค้นหาเพิ่มเติม ---
 search_input = st.text_input("🔍 พิมพ์ชื่อตัวย่อหุ้นที่ต้องการค้นหา (เช่น TSLA, AAPL, RKLB, PTT.BK):", "RKLB")
