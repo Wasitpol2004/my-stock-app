@@ -51,7 +51,7 @@ with head_col1:
     # แสดงโลโก้ (หากคุณมีไฟล์โลโก้ในเครื่อง สามารถเปลี่ยนเป็นชื่อไฟล์ของคุณ เช่น "logo.png" ได้เลยครับ)
     st.image("logo.png", width=65)
 with head_col2:
-    st.markdown("<h2 style='margin:0;'>DOOHUN <span style='font-weight:300; color:#6e7681;'>| มาดูหุ้นกัน</span></h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='margin:0;'>DOOHUN <span style='font-weight:300; color:#6e7681;'>| มาดูหุ้นกัน By W_bxss</span></h2>", unsafe_allow_html=True)
     st.markdown("<p style='margin:0; color:#8b949e; font-size:14px;'>ทำกำไร และ To TheMoon🌕</p>", unsafe_allow_html=True)
 
 st.write("---")
