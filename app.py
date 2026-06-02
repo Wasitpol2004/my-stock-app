@@ -52,10 +52,10 @@ with st.sidebar:
     st.write("---")
     # ช่องใส่คีย์สำหรับ AI ของจริง
     gemini_key = st.text_input(
-        "🔑 ใส่ Gemini API Key ของคุณ:", 
+        "AQ.Ab8RN6KolgcNbRPOW-QxXiW-u8UGvT2zcc8Jg3H5IP2OEukQeQ", 
         type="password", 
         placeholder="AIzaSy...",
-        help="สามารถขอ API Key ใช้งานฟรีได้ที่ Google AI Studio"
+        help="AQ.Ab8RN6KolgcNbRPOW-QxXiW-u8UGvT2zcc8Jg3H5IP2OEukQeQ"
     )
 
 # --- ส่วนหัวโปรแกรม (Header) ---
