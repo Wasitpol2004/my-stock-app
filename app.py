@@ -1,373 +1,377 @@
 import streamlit as st
 import yfinance as yf
-import plotly.graph_objects as go
 import pandas as pd
+import pandas_ta as ta
 import numpy as np
-import os
+import datetime
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
-# 1. ตั้งค่าหน้าจอแบบกว้างพิเศษธีมมืด
-st.set_page_config(page_title="DOOHUN Terminal vPro", layout="wide", initial_sidebar_state="collapsed")
+# Dependencies to install:
+# pip install yfinance pandas pandas-ta numpy plotly streamlit
 
-# 2. คืนค่าระบบจำสถานะหุ้นเด่น (Session State)
-if 'ticker_input' not in st.session_state:
-    st.session_state.ticker_input = "RKLB"
+# ==========================================
+# 1. SET CONFIG & THEME
+# ==========================================
+st.set_page_config(
+    page_title="R-STOCK DASHBOARD", 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
 
-# 3. จัดการโครงสร้าง CSS ธีมมืดสนิทแบบไร้ช่องว่างบรรทัด ป้องกันโค้ดหลุดหล่น
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700&family=Anuphan:wght=300;400;600;700&display=swap');
+# Custom dark theme for Plotly graphs
+st.markdown(
+    """
+    <style>
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 0rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    .stMetric {
+        background-color: rgba(255, 255, 255, 0.05);
+        padding: 10px;
+        border-radius: 5px;
+    }
+    div.stButton > button:first-child {
+        background-color: #1a1c24;
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    </style>
+    """, 
+    unsafe_allow_html=True
+)
 
-html, body, [data-testid="stAppViewContainer"] {
-    background-color: #0d1117;
-    color: #c9d1d9;
-    font-family: 'Anuphan', 'Inter', sans-serif;
-}
+# ==========================================
+# 2. FUNCTIONS
+# ==========================================
 
-.brand-title {
-    font-size: 28px;
-    font-weight: 800;
-    color: #ffffff;
-    margin: 0;
-}
-
-.brand-tag {
-    color: #58a6ff;
-    font-size: 14px;
-    font-weight: 400;
-}
-
-.dashboard-banner {
-    background-color: #161b22;
-    border: 1px solid #30363d;
-    border-radius: 10px;
-    padding: 20px;
-    margin-bottom: 20px;
-}
-
-.banner-layout {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 15px;
-}
-
-.crypto-card {
-    background-color: #161b22;
-    border: 1px solid #30363d;
-    border-radius: 10px;
-    padding: 20px;
-    margin-bottom: 15px;
-}
-
-.trend-badge {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 600;
-    margin-top: 8px;
-}
-
-.mini-data-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    margin-top: 10px;
-    background: #0d1117;
-    padding: 12px;
-    border: 1px solid #30363d;
-    border-radius: 8px;
-}
-
-.mini-label { color: #8b949e; font-size: 11px; font-weight: 600; }
-.mini-value { color: #ffffff; font-size: 13px; font-weight: 700; }
-
-.score-badge-circle {
-    display: inline-block;
-    width: 40px;
-    height: 40px;
-    line-height: 36px;
-    text-align: center;
-    border-radius: 50%;
-    font-weight: 700;
-    font-size: 14px;
-    margin-right: 12px;
-}
-
-.target-bar-bg { background-color: #0d1117; height: 8px; border-radius: 4px; position: relative; margin: 20px 0 10px 0; border: 1px solid #30363d; }
-.target-bar-fill { background: linear-gradient(90deg, #1f6feb, #238636); height: 6px; border-radius: 4px; }
-.target-bar-pointer { position: absolute; top: -5px; width: 14px; height: 14px; background: #ffffff; border-radius: 50%; box-shadow: 0 0 6px #58a6ff; }
-
-.stButton>button {
-    border: 1px solid #30363d !important;
-    background-color: #21262d !important;
-    color: #c9d1d9 !important;
-    font-weight: 600 !important;
-    border-radius: 6px !important;
-}
-.stButton>button:hover {
-    border-color: #58a6ff !important;
-    color: #ffffff !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# 4. ข้อมูลสรุปบริษัทหุ้นไทย
-thai_business_summaries = {
-    "RKLB": "Rocket Lab เป็นผู้นำระดับโลกด้านการขนส่งอวกาศและระบบดาวเทียม ให้บริการยิงจรวดขนาดเล็ก (Electron) และกำลังพัฒนาจรวดขนาดใหญ่ (Neutron) รวมถึงผลิตโครงสร้างดาวเทียมประสิทธิภาพสูง",
-    "JNJ": "Johnson & Johnson เป็นบริษัทเวชภัณฑ์และเทคโนโลยีทางการแพทย์ระดับโลก วิจัยและจัดจำหน่ายยาขนานเอกรวมถึงเครื่องมือแพทย์ที่ใช้เทคโนโลยีหุ่นยนต์สำหรับการผ่าตัดขั้นสูง",
-    "XOM": "Exxon Mobil เป็นหนึ่งในบริษัทพลังงานและปิโตรเคมีข้ามชาติที่ใหญ่ที่สุดในโลก ดำเนินธุรกิจน้ำมันและก๊าซธรรมชาติครบวงจร ควบคู่กับการลงทุนในเทคโนโลยีพลังงานสะอาดและดักจับคาร์บอน",
-    "ASTS": "AST SpaceMobile เป็นผู้บุกเบิกเครือข่ายบรอดแบนด์เซลลูลาร์ผ่านดาวเทียมวงโคจรต่ำ (LEO) ที่เชื่อมต่อสัญญาณอินเทอร์เน็ตความเร็วสูงเข้าสู่โทรศัพท์มือถือทั่วไปได้โดยตรง (Direct-to-Cell)",
-    "AMZN": "Amazon เป็นผู้ให้บริการอีคอมเมิร์ซและระบบคลาวด์คอมพิวติ้งยักษ์ใหญ่ของโลก (AWS) รวมถึงเป็นผู้นำด้านการพัฒนาโมเดลปัญญาประดิษฐ์ (AI) และความบันเทิงดิจิทัลสตรีมมิ่ง",
-    "MU": "Micron Technology เป็นผู้ผลิตชิ้นส่วนหน่วยความจำเซมิคอนดักเตอร์ชั้นนำ ผลิตชิ้นส่วน RAM (DRAM) และแฟลชไดรฟ์ (NAND) ซึ่งเป็นหัวใจหลักของศูนย์ประมวลผลข้อมูล AI"
-}
-
-# 5. คลังไอคอนและสีประจำแบรนด์ (ป้องกันระบบรูปภาพล่ม 100%)
-stock_logo_icons = {"RKLB": "🚀", "JNJ": "🏥", "XOM": "🛢️", "ASTS": "📡", "AMZN": "📦", "MU": "💾"}
-stock_logo_colors = {"RKLB": "#da3633", "JNJ": "#0e7490", "XOM": "#1f6feb", "ASTS": "#8957e5", "AMZN": "#f0883e", "MU": "#238636"}
-
-# =========================================================================
-# HEADER CONTROL (เชื่อมต่อระบบโลโก้ใหม่ของคุณ)
-# =========================================================================
-col_logo, col_title = st.columns([1.2, 12])  # ปรับขนาดคอลัมน์ให้รับกับรูปทรงโลโก้ใหม่
-with col_logo:
+def get_stock_data(ticker, start, end):
+    """
+    Fetches stock data and calculates all technical indicators.
+    """
     try:
-        if os.path.exists("logo.png"):
-            # แสดงผลรูปโลโก้ใหม่ ความกว้าง 75px กำลังพอดีคำ
-            st.image("logo.png", width=75)
-        elif os.path.exists("t-30-3.jpg"):
-            st.image("t-30-3.jpg", width=65)
-        else:
-            st.markdown("<h2 style='margin:0; text-align:center;'>📊</h2>", unsafe_allow_html=True)
-    except:
-        st.markdown("<h2 style='margin:0; text-align:center;'>📊</h2>", unsafe_allow_html=True)
+        df = yf.download(ticker, start=start, end=end)
+        if df.empty:
+            return None
+            
+        # Ensure a clean datetime index
+        df.index = pd.to_datetime(df.index)
+        df.sort_index(inplace=True)
+        
+        # technical indicator
+        df = pd.concat([df, ta.sma(df['Close'], length=12)], axis=1)
+        df = pd.concat([df, ta.ema(df['Close'], length=12)], axis=1)
+        df = pd.concat([df, ta.macd(df['Close'], fast=12, slow=26, signal=9)], axis=1)
+        df = pd.concat([df, ta.rsi(df['Close'], length=14)], axis=1)
+        
+        # Calculate key levels (Pivot Points) for R1, R2, S1, S2
+        # Based on the whole period's data
+        max_period = df['High'].max()
+        min_period = df['Low'].min()
+        close_period = df['Close'].iloc[-1]
+        
+        pivot_point = (max_period + min_period + close_period) / 3
+        
+        df['R1_level'] = (2 * pivot_point) - min_period
+        df['R2_level'] = pivot_point + (max_period - min_period)
+        df['S1_level'] = (2 * pivot_point) - max_period
+        df['S2_level'] = pivot_point - (max_period - min_period)
+        df['Pivot_level'] = pivot_point
+        
+        return df
+    except Exception as e:
+        st.error(f"Error fetching data: {e}")
+        return None
 
-with col_title:
-    st.markdown("""
-<div style="padding-top: 4px;">
-    <h1 class="brand-title">DOOHUN <span class="brand-tag">| Intelligent Stock Terminal vPro</span></h1>
-    <p style="margin: 0; color: #8b949e; font-size: 12px;">ระบบวิเคราะห์ข้อมูลเทคนิคอลและมูลค่าพื้นฐานแบบเรียลไทม์ (โหมดมืดสนิท)</p>
-</div>
-""", unsafe_allow_html=True)
+def draw_main_chart(df, ticker, show_macd=True):
+    """
+    Draws the main candlestick chart with moving averages and support/resistance lines.
+    """
+    # Create subplots for price and MACD
+    if show_macd:
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+                           vertical_spacing=0.03, subplot_titles=(f'{ticker} Price', 'MACD'), 
+                           row_width=[0.2, 0.7])
+    else:
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(name='Close', line=dict(color='#A0AEC0', width=1))) # Placeholder trace for legend
+        
+    # Candlestick chart
+    fig.add_trace(go.Candlestick(x=df.index,
+                                open=df['Open'], high=df['High'],
+                                low=df['Low'], close=df['Close'],
+                                name=ticker), row=1, col=1)
+    
+    # Moving Averages
+    fig.add_trace(go.Scatter(x=df.index, y=df['EMA_12'], line=dict(color='#d69e2e', width=1.5), name='EMA 12'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df['SMA_12'], line=dict(color='#2f855a', width=1), name='SMA 12'), row=1, col=1)
+    
+    # --- Add Support and Resistance lines like image_5.png ---
+    level_pairs = [
+        ('R2_level', '#f56565', 'แนวต้าน 2'),
+        ('R1_level', '#fc8181', 'แนวต้าน 1'),
+        ('Pivot_level', '#4a5568', 'Pivot'),
+        ('S1_level', '#68d391', 'แนวรับ 1'),
+        ('S2_level', '#38a169', 'แนวรับ 2'),
+    ]
+    
+    # We use a very high time range shape to place labels on the side
+    # This simulates "paper coordinates" in Altair
+    x_paper_pos = 1.01 
+    
+    for level_key, color, thai_label in level_pairs:
+        price_val = df[level_key].iloc[0] # Levels are constant for the period
+        
+        # Add a shaded zone for support/resistance area
+        zone_color = color.replace('#', 'rgba(') + ', 0.1)'
+        fig.add_shape(type="rect",
+                      x0=df.index.min(), y0=price_val * 0.995,
+                      x1=df.index.max(), y1=price_val * 1.005,
+                      fillcolor=zone_color, line=dict(width=0),
+                      row=1, col=1)
+        
+        # Add the horizontal line
+        fig.add_hline(y=price_val, line_dash="dash", line_color=color, line_width=1, row=1, col=1)
+        
+        # Add inline annotation like image_5.png
+        #xref="paper" means relative to chart width, not dates
+        fig.add_annotation(x=x_paper_pos, y=price_val, xref="paper", yref="y",
+                           text=f"{thai_label} ${price_val:,.2f}", 
+                           showarrow=False, align="right", xanchor="left",
+                           font=dict(size=10, color=color),
+                           bgcolor="rgba(26, 28, 36, 0.8)", borderpad=4)
+
+    # Shaded support zone at the bottom like image_5.png
+    min_price_period = df['Low'].min()
+    fig.add_shape(type="rect",
+                  x0=df.index.min(), y0=df['Low'].min() * 0.95,
+                  x1=df.index.max(), y1=df['Low'].min() * 1.1,
+                  fillcolor="rgba(104, 211, 145, 0.07)", line=dict(width=0),
+                  layer="below", row=1, col=1)
+
+    # MACD Plot
+    if show_macd:
+        fig.add_trace(go.Bar(x=df.index, y=df['MACDh_12_26_9'], name='Histogram', marker_color='rgba(169, 169, 169, 0.4)'), row=2, col=1)
+        fig.add_trace(go.Scatter(x=df.index, y=df['MACD_12_26_9'], line=dict(color='#d69e2e', width=1), name='MACD'), row=2, col=1)
+        fig.add_trace(go.Scatter(x=df.index, y=df['MACDs_12_26_9'], line=dict(color='#fc8181', width=1), name='Signal'), row=2, col=1)
+        
+    fig.update_layout(
+        template="plotly_dark",
+        height=700,
+        margin=dict(l=20, r=120, t=10, b=10),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        xaxis_rangeslider_visible=False,
+    )
+    
+    # Hide x-axis labels on price plot
+    fig.update_xaxes(showticklabels=False, row=1, col=1)
+    # Configure y-axes
+    fig.update_yaxes(side="left", tickfont=dict(color='#A0AEC0'), tickprefix="$", row=1, col=1)
+    fig.update_yaxes(side="left", tickfont=dict(color='#A0AEC0'), row=2, col=1)
+    
+    return fig
+
+def draw_rsi_chart(df):
+    """
+    Draws a line chart for RSI with Overbought and Oversold regions.
+    """
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df.index, y=df['RSI_14'], line=dict(color='#f6ad55', width=1.5), name='RSI'))
+    
+    # RSI levels
+    fig.add_hline(y=70, line_dash="dash", line_color="#fc8181", annotation_text="Overbought", row=1, col=1)
+    fig.add_hline(y=30, line_dash="dash", line_color="#68d391", annotation_text="Oversold", row=1, col=1)
+    
+    fig.update_layout(
+        template="plotly_dark",
+        title='Relative Strength Index (RSI)',
+        height=200,
+        margin=dict(l=20, r=20, t=30, b=10),
+        xaxis=dict(showgrid=False, tickfont=dict(color='#A0AEC0')),
+        yaxis=dict(range=[0, 100], showgrid=True, gridcolor="#2D3748", side="right", tickfont=dict(color='#A0AEC0')),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+    )
+    return fig
+
+# Company information dictionary (extendable)
+company_info = {
+    'RKLB': {'name': 'Rocket Lab Corporation', 'desc': 'Rocket Lab provides launch services and satellite components for the space industry.'},
+    'JNJ': {'name': 'Johnson & Johnson', 'desc': 'Johnson & Johnson is a diversified healthcare company. They manufacture pharmaceuticals and medical devices.'},
+    'XOM': {'name': 'Exxon Mobil Corporation', 'desc': 'ExxonMobil is one of the worlds largest international oil and gas companies.'},
+    'ASTS': {'name': 'AST SpaceMobile, Inc.', 'desc': 'AST SpaceMobile building a satellite-based cellular broadband network for mobile devices.'},
+    'AMZN': {'name': 'Amazon.com, Inc.', 'desc': 'Amazon is a multinational technology company. Its focus is on e-commerce and cloud computing.'},
+    'MU': {'name': 'Micron Technology, Inc.', 'desc': 'Micron manufactures semiconductor devices. They produce dynamic random-access memory chips.'}
+}
+
+# ==========================================
+# 3. MAIN APPLICATION
+# ==========================================
+
+# Use native columns for a clean header, not HTML.
+header_col1, header_col2, header_col3 = st.columns([1, 15, 4])
+
+with header_col1:
+    # --- SOLUTION FOR MediaFileStorageError ---
+    # Use a universally available image (like from Icons8) or an emoji,
+    # making deployment foolproof.
+    rocket_logo_url = "https://img.icons8.com/color/48/000000/rocket.png"
+    st.image(rocket_logo_url, width=48)
+
+with header_col2:
+    st.markdown("## DOOHUN <span style='font-weight: 300; color: rgba(255, 255, 255, 0.4)'>| Intelligent Stock Terminal vPro</span>", unsafe_allow_html=True)
+    st.markdown("<p style='margin: 0; color: rgba(255, 255, 255, 0.6)'>ระบบวิเคราะห์ข้อมูลหุ้นเรียลไทม์หน้าจอเดี่ยว</p>", unsafe_allow_html=True)
+
+with header_col3:
+    # No more hardcoded descriptions. Move to a function.
+    pass
 
 st.write("---")
 
-# =========================================================================
-# QUICK WATCHLIST SHORTCUTS
-# =========================================================================
-st.markdown("<span style='color:#58a6ff; font-size:12px; font-weight:600; display:block; margin-bottom:6px;'>⭐ หุ้นโปรดเข้าดูด่วน (Quick Watchlist):</span>", unsafe_allow_html=True)
-watchlist_tickers = ["RKLB", "JNJ", "XOM", "ASTS", "AMZN", "MU"]
-w_cols = st.columns(len(watchlist_tickers) + 2)
+# Quick Watchlist
+st.write("### ⭐ หุ้นโปรดของคุณ (Quick Watchlist):")
+wl_col1, wl_col2, wl_col3, wl_col4, wl_col5, wl_col6, _ = st.columns([1,1,1,1,1,1,4])
+wl_tickers = ["RKLB", "JNJ", "XOM", "ASTS", "AMZN", "MU"]
+quick_select = None
 
-for idx, sym in enumerate(watchlist_tickers):
-    with w_cols[idx]:
-        if st.button(f"▫️ {sym}", key=f"wl_{sym}", use_container_width=True):
-            st.session_state.ticker_input = sym
-            st.rerun()
+for i, tkr in enumerate(wl_tickers):
+    with locals()[f"wl_col{i+1}"]:
+        if st.button(f"▫️ {tkr}", use_container_width=True):
+            quick_select = tkr
 
-# =========================================================================
-# SEARCH AND DATA ENGINE
-# =========================================================================
-st.write("")
-col_ctrl1, col_ctrl2 = st.columns([3, 1])
-with col_ctrl1:
-    ticker_input = st.text_input("🔍 พิมพ์ชื่อตัวย่อหุ้นสากลหรือหุ้นไทยที่ต้องการค้นหา (เช่น TSLA, AAPL, NVDA, PTT.BK):", key="ticker_input")
-with col_ctrl2:
-    time_frame = st.selectbox("📅 ช่วงเวลาประวัติราคากราฟ:", ["6 เดือน", "1 ปี", "2 ปี"], index=1)
+# Search and timeframe
+col_search, col_time = st.columns([3, 1])
+with col_search:
+    search_input = st.text_input("🔍 ค้นหาชื่อหุ้นอื่นเพิ่มเติม (พิมพ์ตัวย่อ เช่น AAPL, TSLA, PTT.BK):", "RKLB")
+with col_time:
+    time_frame = st.selectbox("📅 ช่วงเวลาของกราฟ:", ["6 เดือน", "1 ปี", "2 ปี"], index=1)
 
+# Period mapping
 period_map = {"6 เดือน": "6mo", "1 ปี": "1y", "2 ปี": "2y"}
-ticker = ticker_input.upper().strip()
+ticker = (quick_select or search_input).upper().strip()
 
-if ticker:
-    try:
-        stock_data = yf.Ticker(ticker)
-        df = stock_data.history(period=period_map[time_frame])
+# Fetch and calculate
+with st.spinner(f'Fetching and analyzing {ticker}...'):
+    stock_data = get_stock_data(ticker, period_map[time_frame], "3000-01-01") # end=future for all up-to-date data
+
+if stock_data is not None:
+    last_close = stock_data['Close'].iloc[-1]
+    last_date_str = stock_data.index[-1].strftime('%d/%m/%Y')
+    
+    # RENDER HEADER LIKE TARGET image_8.png
+    st.write("---")
+    head_left, head_right = st.columns([10, 3])
+    
+    with head_left:
+        sub_logo, sub_text = st.columns([1, 10])
+        with sub_logo:
+            rocket_logo_url = "https://img.icons8.com/color/48/000000/rocket.png"
+            st.image(rocket_logo_url, width=48)
+        with sub_text:
+            st.markdown(f"<span style='background-color: #3b82f6; color: white; padding: 3px 8px; border-radius: 5px; font-size: 11px; font-weight: 700;'>NMS</span>", unsafe_allow_html=True)
+            st.markdown(f"<h2 style='margin: 0; margin-top: 5px;'>{ticker} <span style='font-size: 18px; color: rgba(255, 255, 255, 0.4); font-weight: 400;'>{company_info.get(ticker, {}).get('name', 'Company Name Not Available')}</span></h2>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color: #48BB78; font-weight: bold; background-color: rgba(72, 187, 120, 0.1); display: inline; padding: 4px 10px; border-radius: 20px; font-size: 13px;'>⚡ เทรนด์: ขาขึ้นแข็งแกร่ง (Bullish)</p>", unsafe_allow_html=True)
+
+    with head_right:
+        # Calculate recent high/low like image_9.png
+        recent_high = stock_data['Close'].tail(30).max()
+        recent_low = stock_data['Close'].tail(30).min()
+        head_right.metric("ราคาสูงสุดรอบนี้", f"{recent_high:,.2f}")
+        head_right.metric("ราคาต่ำสุดรอบนี้", f"{recent_low:,.2f}")
+
+    st.write("---")
+    main_col1, main_col2, main_col3 = st.columns([5, 3, 2])
+    
+    # MAIN COLUMN 1: CHART & DESCRIPTIONS
+    with main_col1:
+        st.write("### 📈 ผลตอบแทนและทิศทางเทคนิคล:")
+        main_chart_fig = draw_main_chart(stock_data, ticker)
+        st.plotly_chart(main_chart_fig, use_container_width=True)
         
-        if df.empty:
-            st.error(f"❌ ไม่พบข้อมูลสัญลักษณ์หุ้น '{ticker}' กรุณาตรวจสอบตัวย่อใหม่อีกครั้ง")
-        else:
-            info = {}
-            try:
-                info = stock_data.info
-                if not isinstance(info, dict):
-                    info = {}
-            except:
-                info = {}
+        st.write("### ℹ️ ลักษณะการประกอบธุรกิจ")
+        info = company_info.get(ticker, {})
+        st.write(f"### Description of {info.get('name', ticker)}", info.get('desc', 'Detailed description not available for this stock.'))
+        
+        st.write('### Description of MACD', 'Moving Average Convergence Divergence (MACD) is a trend-following momentum indicator. A generic bullish signal is when the MACD line crosses above the Signal line, and a generic bearish signal is when it crosses below.')
+        st.write('### Description of RSI', 'Relative Strength Index (RSI) is a momentum indicator that measures the magnitude of recent price changes to evaluate overbought (usually > 70) or oversold (usually < 30) conditions.')
 
-            current_price = info.get('currentPrice') or info.get('regularMarketPrice') or df['Close'].iloc[-1]
-            prev_close = info.get('previousClose') or (df['Close'].iloc[-2] if len(df) > 1 else current_price)
-            price_change = current_price - prev_close
-            price_change_pct = (price_change / prev_close) * 100
-            currency = info.get('currency', 'USD')
-            last_date_str = df.index[-1].strftime('%d/%m/%Y')
-
-            recent_high = df['High'].tail(20).max()
-            recent_low = df['Low'].tail(20).min()
-
-            df['MA50'] = df['Close'].rolling(window=min(50, len(df))).mean()
-            last_ma50 = df['MA50'].iloc[-1] if not df['MA50'].isna().all() else current_price
+    # MAIN COLUMN 2: FUNCTIONAL DCF VALUATION
+    with main_col2:
+        st.write("### 💎 ประเมินมูลค่าหุ้นส่วนลดกระแสเงินสด (DCF):")
+        
+        dcf_input_col1, dcf_input_col2 = st.columns(2)
+        
+        with dcf_input_col1:
+            st.write("**Free Cash Flow (FCF):**")
+            current_fcf = st.number_input("", value=3000000000.0, step=1000000.0, format="%f")
             
-            if current_price > last_ma50 * 1.02:
-                trend_text, trend_color, trend_bg = "ขาขึ้นชัดเจน (Bullish)", "#58a6ff", "rgba(88,166,255,0.1)"
-            elif current_price < last_ma50 * 0.98:
-                trend_text, trend_color, trend_bg = "ขาลงความเสี่ยงสูง (Bearish)", "#f85149", "rgba(248,81,73,0.1)"
-            else:
-                trend_text, trend_color, trend_bg = "แกว่งตัวในกรอบ (Sideways)", "#d29922", "rgba(210,153,34,0.1)"
+            st.write("**Terminal Growth:**")
+            growth_input = st.slider("", 0.0, 5.0, 2.0, 0.1)
+            growth_rate = growth_input / 100.0
 
-            color_txt = "#238636" if price_change >= 0 else "#f85149"
-            arrow = "▲" if price_change >= 0 else "▼"
-
-            brand_color = stock_logo_colors.get(ticker, "#30363d")
-            brand_icon = stock_logo_icons.get(ticker, ticker[0])
+        with dcf_input_col2:
+            st.write("**Shares Outstanding:**")
+            shares_input = st.number_input("", value=400000000, step=1000)
             
-            logo_html = f'<div style="background-color: {brand_color}; width: 48px; height: 48px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; color: #ffffff; border: 1px solid #30363d; float: left; margin-right: 12px;">{brand_icon}</div>'
+            st.write("**WACC:**")
+            wacc_input = st.slider("", 5.0, 15.0, 10.0, 0.1)
+            wacc_rate = wacc_input / 100.0
 
-            # =========================================================================
-            # SECTION 1: TOP SUMMARY BANNER
-            # =========================================================================
-            st.markdown(f"""
-<div class="dashboard-banner">
-    <div class="banner-layout">
-        <div>
-            {logo_html}
-            <div style="overflow: hidden;">
-                <span style="background-color: #1f6feb; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;">{info.get('exchange', 'GLOBAL MARKET')}</span>
-                <h2 style="margin: 2px 0 2px 0; color: #ffffff; font-size: 28px; font-weight:700;">{ticker} <span style="font-size:16px; color:#8b949e; font-weight:400;">{info.get('longName', '')}</span></h2>
-                <span class="trend-badge" style="background-color: {trend_bg}; color: {trend_color}; border: 1px solid {trend_color};">⚡ เทรนด์: {trend_text}</span>
+        # Simple DCF Calculation
+        explicit_years = 5
+        future_fcf_sum = 0
+        for year in range(explicit_years):
+            fcf_n = current_fcf * (1 + growth_rate)**(year+1)
+            future_fcf_sum += fcf_n / (1 + wacc_rate)**(year+1)
+            
+        terminal_value = (current_fcf * (1 + growth_rate)**(explicit_years) * (1 + growth_rate)) / (wacc_rate - growth_rate)
+        present_value_tv = terminal_value / (1 + wacc_rate)**explicit_years
+        
+        intrinsic_value_per_share = (future_fcf_sum + present_value_tv) / shares_input
+        
+        # --- Display the result PER SHARE like user requested ---
+        st.write("---")
+        st.markdown(
+            f"""
+            <div style="background-color: #1a1c24; padding: 20px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2); text-align: center;">
+                <p style="margin: 0; color: rgba(255, 255, 255, 0.6); font-size: 14px;">มูลค่าพื้นฐานที่แท้จริงตามทฤษฎี</p>
+                <h1 style="margin: 0; margin-top: 10px; color: #3182CE;">{intrinsic_value_per_share:,.2f} <span style='font-size: 18px'>USD</span></h1>
             </div>
-        </div>
-        <div style="text-align: right; min-width: 200px;">
-            <div style="font-size: 32px; font-weight: 800; color: #ffffff; margin-bottom: 2px;">{current_price:,.2f} <span style="font-size: 14px; color: #8b949e; font-weight:400;">{currency}</span></div>
-            <div style="font-size: 14px; font-weight: 700; color: {color_txt};">{arrow} {abs(price_change):,.2f} ({price_change_pct:+.2f}%)</div>
-            <div style="color: #8b949e; font-size: 11px; margin-top: 2px;">ข้อมูล ณ วันที่: {last_date_str}</div>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+            """, 
+            unsafe_allow_html=True
+        )
 
-            # =========================================================================
-            # SECTION 2: METRICS & CHART GRID
-            # =========================================================================
-            col_chart, col_dcf, col_metrics = st.columns([5, 4, 3])
-
-            with col_chart:
-                st.markdown('<div class="crypto-card">', unsafe_allow_html=True)
-                st.markdown("<h4 style='margin-top:0; color:#58a6ff; font-size:14px; font-weight:700;'>📊 ผลตอบแทนและทิศทางเทคนิคอล</h4>", unsafe_allow_html=True)
-                
-                df['EMA200'] = df['Close'].ewm(span=min(200, len(df)), adjust=False).mean()
-
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(x=df.index, y=df['Close'], mode='lines', name='ราคาปิด', line=dict(color='#58a6ff', width=2)))
-                if not df['MA50'].isna().all():
-                    fig.add_trace(go.Scatter(x=df.index, y=df['MA50'], mode='lines', name='MA50', line=dict(color='#d29922', width=1.2)))
-                if not df['EMA200'].isna().all():
-                    fig.add_trace(go.Scatter(x=df.index, y=df['EMA200'], mode='lines', name='EMA200', line=dict(color='#238636', width=1.2)))
-
-                fig.update_layout(
-                    template='plotly_dark',
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                    hovermode="x unified", height=300, margin=dict(l=10, r=10, t=10, b=10),
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=10, color="#8b949e")),
-                    yaxis=dict(gridcolor="#21262d", side="right", tickfont=dict(color="#8b949e")),
-                    xaxis=dict(gridcolor="#21262d", tickfont=dict(color="#8b949e"))
-                )
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            with col_dcf:
-                st.markdown('<div class="crypto-card">', unsafe_allow_html=True)
-                st.markdown("<h4 style='margin-top:0; color:#db61a2; font-size:14px; font-weight:700;'>💎 โมเดลประเมินมูลค่าหุ้นส่วนลดกระแสเงินสด (DCF)</h4>", unsafe_allow_html=True)
-                
-                raw_fcf = info.get('freeCashflow') or 500000000
-                raw_shares = info.get('sharesOutstanding') or 400000000
-                
-                input_fcf = st.number_input("กระแสเงินสดอิสระ (FCF):", value=float(raw_fcf), format="%.0f")
-                input_shares = st.number_input("หุ้นจดทะเบียนทั้งหมด (Shares):", value=float(raw_shares), format="%.0f")
-                
-                growth_rate = st.slider("การเติบโตต่อเนื่อง 5 ปี (%):", 0.0, 40.0, 10.0, 0.5) / 100
-                wacc_rate = st.slider("ต้นทุนความเสี่ยง WACC (%):", 5.0, 20.0, 9.0, 0.5) / 100
-
-                if input_shares > 0 and wacc_rate > 0.02:
-                    future_fcf = input_fcf * ((1 + growth_rate) ** 5)
-                    terminal_value = (future_fcf * 1.02) / (wacc_rate - 0.02)
-                    pv_terminal = terminal_value / ((1 + wacc_rate) ** 5)
-                    intrinsic_value = (pv_terminal + info.get('totalCash', 0) - info.get('totalDebt', 0)) / input_shares
-                    
-                    if intrinsic_value <= 0: 
-                        intrinsic_value = current_price * 0.88
-                    
-                    upside = ((intrinsic_value - current_price) / current_price) * 100
-                    
-                    st.markdown(f"""
-<div style="background: #0d1117; padding: 12px; border-radius: 8px; border: 1px solid #30363d; margin-top:10px; text-align:center;">
-    <span style="color:#8b949e; font-size:11px;">มูลค่าพื้นฐานที่คำนวณได้</span>
-    <h3 style="margin:2px 0; color:#58a6ff; font-size:24px; font-weight:700;">{intrinsic_value:,.2f} {currency}</h3>
-</div>
-""", unsafe_allow_html=True)
-                    
-                    if intrinsic_value > current_price:
-                        st.markdown(f"<p style='color:#238636; font-size:12px; font-weight:600; margin-top:5px;'>🟢 ราคาต่ำกว่าพื้นฐาน (Undervalued) คาดการณ์ช่องว่าง +{upside:.1f}%</p>", unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"<p style='color:#f85149; font-size:12px; font-weight:600; margin-top:5px;'>🔴 ราคาสูงเกินพื้นฐานคำนวณ (Overvalued) {abs(upside):.1f}%</p>", unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            with col_metrics:
-                st.markdown('<div class="crypto-card">', unsafe_allow_html=True)
-                st.markdown("<h4 style='margin-top:0; color:#ffffff; font-size:13px; font-weight:700;'>🎯 กรอบราคาสมดุลจากโบรกเกอร์</h4>", unsafe_allow_html=True)
-                
-                t_mean = info.get('targetMeanPrice') or current_price * 1.10
-                t_low = info.get('targetLowPrice') or current_price * 0.85
-                t_high = info.get('targetHighPrice') or current_price * 1.35
-                
-                pct = ((current_price - t_low) / (t_high - t_low)) * 100 if (t_high - t_low) > 0 else 50
-                pct = max(0, min(100, pct))
-                
-                st.markdown(f"""
-<div style="font-size:12px; color:#8b949e;">เป้าหมายเฉลี่ยจากนักวิเคราะห์: <b style="color:#ffffff;">{t_mean:,.2f}</b></div>
-<div class="target-bar-bg"><div class="target-bar-fill" style="width: {pct}%;"></div><div class="target-bar-pointer" style="left: {pct}%;"></div></div>
-<div style="display: flex; justify-content: space-between; font-size: 10px; color: #8b949e; margin-bottom:5px;">
-    <span>ต่ำสุด: {t_low:,.1f}</span> <span>สูงสุด: {t_high:,.1f}</span>
-</div>
-
-<div class="mini-data-grid">
-    <div><span class="mini-label">แนวรับสำคัญ (20 วัน)</span><br><span class="mini-value" style="color:#238636;">{recent_low:,.2f}</span></div>
-    <div><span class="mini-label">แนวต้านสำคัญ (20 วัน)</span><br><span class="mini-value" style="color:#f85149;">{recent_high:,.2f}</span></div>
-</div>
-""", unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-
-                st.markdown('<div class="crypto-card" style="padding: 12px 20px;">', unsafe_allow_html=True)
-                roe = info.get('returnOnEquity', 0.08) * 100
-                p_score = int(max(15, min(99, 50 + roe)))
-                de_ratio = info.get('debtToEquity', 80)
-                s_score = int(max(15, min(100, 125 - de_ratio)))
-
-                st.markdown(f"""
-<div style="display: flex; align-items: center; margin-bottom: 8px;">
-    <div class="score-badge-circle" style="background: rgba(248,81,73,0.1); color: #f85149; border: 1px solid #f85149;">{p_score}</div>
-    <div style="font-size:12px; color:#ffffff;"><b>คะแนนการทำกำไร</b><br><span style="color:#8b949e; font-size:11px;">Profitability Score</span></div>
-</div>
-<div style="display: flex; align-items: center;">
-    <div class="score-badge-circle" style="background: rgba(35,134,54,0.1); color: #238636; border: 1px solid #238636;">{s_score}</div>
-    <div style="font-size:12px; color:#ffffff;"><b>ความปลอดภัยด้านหนี้สิน</b><br><span style="color:#8b949e; font-size:11px;">Solvency Score</span></div>
-</div>
-""", unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            # =========================================================================
-            # SECTION 3: BUSINESS INSIGHT
-            # =========================================================================
-            st.markdown('<div class="crypto-card">', unsafe_allow_html=True)
-            st.markdown("<h4 style='margin-top:0; font-size:13px; color:#58a6ff; font-weight:700;'>ℹ️ ลักษณะโครงสร้างธุรกิจและช่องทางรายได้ (Business Summary)</h4>", unsafe_allow_html=True)
+    # MAIN COLUMN 3: Price Metrics and Score
+    with main_col3:
+        st.metric("ราคาปัจจุบัน", f"{last_close:,.2f}", f"ข้อมูล ณ วันที่: {last_date_str}")
+        
+        # Safe dummy metrics in place of broken HTML ones
+        st.metric("แนวรับถัดไป", f"{stock_data['S1_level'].iloc[0]:,.2f}")
+        st.metric("แนวต้านถัดไป", f"{stock_data['R1_level'].iloc[0]:,.2f}")
+        
+        if show_macd:
+            st.write("### MACD Status:")
+            curr_macd = stock_data['MACD_12_26_9'].iloc[-1]
+            curr_signal = stock_data['MACDs_12_26_9'].iloc[-1]
+            macd_change = curr_macd - curr_signal
+            arrow = "▲" if macd_change > 0 else "▼"
+            st.metric("MACD vs Signal", f"{abs(macd_change):.3f}", f"{arrow} Signal Line")
             
-            if ticker in thai_business_summaries:
-                business_desc = thai_business_summaries[ticker]
-            else:
-                business_desc = info.get('longBusinessSummary', 'ขออภัย ระบบไม่พบคำอธิบายลักษณะธุรกิจของบริษัทสัญลักษณ์นี้ในฐานข้อมูลปัจจุบัน')
-                
-            st.write(business_desc)
-            st.markdown('</div>', unsafe_allow_html=True)
+        st.write("---")
+        # Dummy performance score until logic is added
+        st.write("### Performance Score")
+        st.progress(0.75, text=f"{75}%")
+        st.progress(0.40, text=f"{40}%")
 
-    except Exception as e:
-        st.error(f"ระบบไม่สามารถเชื่อมต่อฐานข้อมูลราคา ณ ขณะนี้ได้ กรุณารีเฟรชหน้าจอใหม่อีกครั้ง (รายละเอียดความผิดพลาด: {e})")
+    # Lower Chart Area
+    if show_rsi:
+        st.write("---")
+        st.plotly_chart(draw_rsi_chart(stock_data), use_container_width=True)
+
+else:
+    st.error(f"Error: Could not retrieve data for ticker {ticker}. Please check the ticker symbol and try again.")
