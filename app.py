@@ -5,9 +5,13 @@ import pandas as pd
 import numpy as np
 
 # 1. ตั้งค่าหน้าจอแบบกว้างพิเศษเพื่อรองรับระบบ Dashboard หน้าเดียว
-st.set_page_config(page_title="DOOHUN - ดูหุ้น Terminal", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="DOOHUN Terminal", layout="wide", initial_sidebar_state="collapsed")
 
-# 2. คลังสไตล์ความสวยงาม CSS (แยกออกจาก f-string เด็ดขาด เพื่อแก้ปัญหาโค้ดรั่วถาวร)
+# 2. ระบบจำสถานะหุ้นเด่น (Session State) เพื่อรองรับปุ่มกดคลิกเดียวเปลี่ยนหุ้น
+if 'ticker_input' not in st.session_state:
+    st.session_state.ticker_input = "RKLB"
+
+# 3. คลังสไตล์ความสวยงาม CSS (ปลอดภัย 100% ไม่รั่วไหล)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
@@ -18,32 +22,18 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
     
-    /* โลโก้แบรนด์ DOOHUN ด้านบน */
-    .brand-container {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 15px;
-    }
-    .brand-logo {
-        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-        color: white;
-        padding: 8px 16px;
-        border-radius: 10px;
-        font-weight: 800;
-        font-size: 20px;
-        letter-spacing: 1px;
-        box-shadow: 0 4px 15px rgba(29, 78, 216, 0.4);
-    }
+    /* หัวโลโก้แบรนด์ */
     .brand-title {
-        font-size: 22px;
-        font-weight: 700;
+        font-size: 26px;
+        font-weight: 800;
         color: #ffffff;
+        margin: 0;
+        line-height: 1.2;
     }
     .brand-tag {
         color: #64748b;
         font-size: 13px;
-        margin-left: 5px;
+        font-weight: 400;
     }
 
     /* กล่องข้อมูลหลัก Top Banner */
@@ -116,18 +106,41 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================================
-# HEADER & CONTROL BAR
+# HEADER WITH LOGO IMAGE (ใช้ภาพ t-30-3.jpg เป็นโลโก้เว็บอย่างเป็นทางการ)
 # =========================================================================
-st.markdown("""
-    <div class="brand-container">
-        <div class="brand-logo">DOOHUN</div>
-        <div class="brand-title">ดูหุ้น <span class="brand-tag">| Intelligent Stock Terminal</span></div>
-    </div>
-""", unsafe_allow_html=True)
+col_logo, col_title = st.columns([1, 12])
+with col_logo:
+    st.image("t-30-3.jpg", width=65)
+with col_title:
+    st.markdown("""
+        <div style="padding-top: 5px;">
+            <h1 class="brand-title">DOOHUN <span class="brand-tag">| Intelligent Stock Terminal vPro</span></h1>
+            <p style="margin: 0; color: #475569; font-size: 12px;">ระบบวิเคราะห์ข้อมูลหุ้นเรียลไทม์หน้าจอเดี่ยว</p>
+        </div>
+    """, unsafe_allow_html=True)
 
+st.write("---")
+
+# =========================================================================
+# FAST WATCHLIST BAR (แถบทางลัดสายสะดวกสบาย คลิกปุ๊บ ข้อมูลเปลี่ยนปั๊บ)
+# =========================================================================
+st.markdown("<span style='color:#64748b; font-size:12px; font-weight:600; display:block; margin-bottom:5px;'>⭐ หุ้นโปรดของคุณ (Quick Watchlist):</span>", unsafe_allow_html=True)
+watchlist_tickers = ["RKLB", "JNJ", "XOM", "ASTS", "AMZN", "MU"]
+w_cols = st.columns(len(watchlist_tickers) + 2) # เผื่อช่องว่างด้านท้าย
+
+for idx, sym in enumerate(watchlist_tickers):
+    with w_cols[idx]:
+        if st.button(f"▪️ {sym}", key=f"wl_{sym}", use_container_width=True):
+            st.session_state.ticker_input = sym
+            st.rerun()
+
+# =========================================================================
+# CONTROL SEARCH BAR
+# =========================================================================
+st.write("")
 col_ctrl1, col_ctrl2 = st.columns([3, 1])
 with col_ctrl1:
-    ticker_input = st.text_input("🔍 ค้นหาชื่อหุ้นไทยหรือหุ้นต่างประเทศ (เช่น RKLB, AAPL, PTT.BK, CPALL.BK):", "RKLB")
+    ticker_input = st.text_input("🔍 ค้นหาชื่อหุ้นอื่นเพิ่มเติม (เช่น AAPL, TSLA, PTT.BK, CPALL.BK):", key="ticker_input")
 with col_ctrl2:
     time_frame = st.selectbox("📅 ช่วงเวลาของกราฟ:", ["6 เดือน", "1 ปี", "2 ปี"], index=1)
 
@@ -136,12 +149,12 @@ ticker = ticker_input.upper().strip()
 
 if ticker:
     try:
-        # โหลดข้อมูลดิบย้อนหลัง
+        # โหลดข้อมูลดิบย้อนหลังผ่าน yfinance
         stock_data = yf.Ticker(ticker)
         df = stock_data.history(period=period_map[time_frame])
         
         if df.empty:
-            st.error(f"❌ ไม่พบสัญลักษณ์หุ้นชื่อ '{ticker}' กรุณาตรวจสอบตัวย่อตลาดหุ้นใหม่อีกครั้ง")
+            st.error(f"❌ ไม่พบสัญลักษณ์หุ้นชื่อ '{ticker}' กรุณาตรวจสอบตัวย่อใหม่อีกครั้ง")
         else:
             try: info = stock_data.info
             except: info = {}
@@ -159,11 +172,11 @@ if ticker:
             currency = info.get('currency', 'USD')
             last_date_str = df.index[-1].strftime('%d/%m/%Y')
 
-            # คำนวณแนวรับ-แนวต้านเบื้องต้นแบบอัตโนมัติ (Pivot Point / High-Low Window)
+            # คำนวณแนวรับ-แนวต้านอัตโนมัติ (High-Low Window 20 วันล่าสุด)
             recent_high = df['High'].tail(20).max()
             recent_low = df['Low'].tail(20).min()
 
-            # ตรวจสอบทิศทางเทรนด์ด้วยค่าเฉลี่ยสัญญานเคลื่อนที่
+            # ตรวจสอบทิศทางเทรนด์ด้วยค่าเฉลี่ยสัญญานเคลื่อนที่ MA50
             df['MA50'] = df['Close'].rolling(window=min(50, len(df))).mean()
             last_ma50 = df['MA50'].iloc[-1] if not df['MA50'].isna().all() else current_price
             
@@ -174,7 +187,6 @@ if ticker:
             else:
                 trend_text, trend_color, trend_bg = "ออกข้างเลือกข้าง (Sideways)", "#eab308", "rgba(234,179,8,0.1)"
 
-            # สีของราคาปัจจุบัน
             color_txt = "#10b981" if price_change >= 0 else "#ef4444"
             arrow = "▲" if price_change >= 0 else "▼"
 
@@ -199,7 +211,7 @@ if ticker:
             """, unsafe_allow_html=True)
 
             # =========================================================================
-            # SECTION 2: ALL-IN-ONE GRID LAYOUT (3 คอลัมน์ขนานกันในหน้าเดียว)
+            # SECTION 2: ALL-IN-ONE GRID LAYOUT (3 คอลัมน์กว้าง 5:4:3)
             # =========================================================================
             col_chart, col_dcf, col_metrics = st.columns([5, 4, 3])
 
@@ -232,9 +244,8 @@ if ticker:
                 st.markdown('<div class="crypto-card">', unsafe_allow_html=True)
                 st.markdown("<h4 style='margin-top:0; color:#c084fc; font-size:15px;'>💎 เครื่องประเมินราคาเหมาะสม (DCF Valuation)</h4>", unsafe_allow_html=True)
                 
-                # ดึงตัวแปรจากคลังข้อมูลพร้อมค่า Default
-                raw_fcf = info.get('freeCashflow') or 480000000
-                raw_shares = info.get('sharesOutstanding') or 380000000
+                raw_fcf = info.get('freeCashflow') or 500000000
+                raw_shares = info.get('sharesOutstanding') or 400000000
                 
                 input_fcf = st.number_input("กระแสเงินสดอิสระ (Free Cash Flow):", value=float(raw_fcf), format="%.0f")
                 input_shares = st.number_input("จำนวนหุ้นจดทะเบียนทั้งหมด (Shares):", value=float(raw_shares), format="%.0f")
@@ -261,14 +272,13 @@ if ticker:
                     """, unsafe_allow_html=True)
                     
                     if intrinsic_value > current_price:
-                        st.success(f"🟢 ถูกกว่าพื้นฐาน (Undervalued) มีช่องว่างทำกำไร +{upside:.1f}%")
+                        st.success(f"🟢 ถูกกว่าพื้นฐาน (Undervalued) มี Upside +{upside:.1f}%")
                     else:
                         st.warning(f"🔴 แพงกว่าพื้นฐาน (Overvalued) เกินราคาเป้าหมาย {abs(upside):.1f}%")
                 st.markdown('</div>', unsafe_allow_html=True)
 
             # --- คอลัมน์ที่ 3: เป้าหมายนักวิเคราะห์ & สแกนสุขภาพการเงิน ---
             with col_metrics:
-                # การ์ดเป้าหมายราคาสมดุล Wall Street
                 st.markdown('<div class="crypto-card">', unsafe_allow_html=True)
                 st.markdown("<h4 style='margin-top:0; color:#f1f5f9; font-size:14px;'>🎯 ความเห็นของโบรกเกอร์ (Wall St)</h4>", unsafe_allow_html=True)
                 
@@ -322,4 +332,4 @@ if ticker:
             st.markdown('</div>', unsafe_allow_html=True)
 
     except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดในการโหลด API ดึงข้อมูลหุ้น: {e}")
+        st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลหุ้น: {e}")
