@@ -4,13 +4,29 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import datetime
+import requests
 
 # --- ตั้งค่าหน้าจอเปิดกว้างแบบสมดุล ---
 st.set_page_config(layout="wide", page_title="DOOHUN - Stock Terminal")
 
-# --- ฟังก์ชันคำนวณอินดิเคเตอร์พื้นฐาน (ไม่พึ่งพาไลบรารีภายนอกป้องกัน Error) ---
+# --- ปรับแต่งสไตล์ CSS ให้เป็นธีม Dark Terminal ---
+st.markdown("""
+    <style>
+        .stApp { background-color: #0e1117; }
+        .stMetricValue { color: white !important; font-weight: bold; }
+        .stMetricLabel { color: #8a99ad !important; }
+        .term-badge { background-color: rgba(59, 130, 246, 0.15); color: #3b82f6; border-radius: 4px; padding: 3px 8px; font-weight: bold; font-size: 11px; }
+        .term-badge-trend { background-color: rgba(16, 185, 129, 0.15); color: #10b981; border-radius: 4px; padding: 3px 8px; font-weight: bold; font-size: 11px; }
+        .term-card { border: 1px solid #202632; padding: 20px; border-radius: 8px; background-color: #161b22; margin-bottom: 15px; }
+        .undervalued { color: #4ade80; font-weight: bold; }
+        .overvalued { color: #f87171; font-weight: bold; }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- ฟังก์ชันคำนวณอินดิเคเตอร์พื้นฐาน ---
 def calculate_indicators(df):
-    if df.empty: return df
+    if df.empty: 
+        return df
     df = df.copy()
     
     # คำนวณ EMA 12 และ 26
@@ -31,55 +47,25 @@ def calculate_indicators(df):
     
     return df
 
-# --- ฟังก์ชันดึงข้อมูลหุ้นแบบกันกระแทก (Bulletproof Cache & Headers) ---
-@st.cache_data(ttl=600)  # จำข้อมูลในหน่วยความจำ 10 นาที เพื่อลดการส่งคำขอซ้ำซ้อน ป้องกันการโดนบล็อก IP บน Cloud
+# --- ฟังก์ชันดึงข้อมูลหุ้นแบบปลอดภัย (มี Cache ป้องกันโดนบล็อก IP) ---
+@st.cache_data(ttl=900)  # เก็บข้อมูลไว้ในหน่วยความจำ 15 นาที ลดการยิงขอข้อมูลซ้ำๆ
 def get_cached_stock_data(ticker, start, end):
-    import requests
-    
-    # สร้าง Session พร้อมชุด Headers ปลอมแปลงพฤติกรรมให้เนียนเหมือนเบราว์เซอร์จริงยุคปัจจุบัน
     session = requests.Session()
+    # ส่ง Header ปลอมตัวเป็น Browser ทั่วไปเพื่อเลี่ยงการโดนเซิร์ฟเวอร์ปฏิเสธคำขอ
     session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9,th;q=0.8',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
     })
-    
-    # วิธีที่ 1: ดึงข้อมูลผ่าน yf.download (มีความเสถียรสูงเมื่อรันบนระบบคลาวด์สาธารณะ)
-    try:
-        df = yf.download(ticker, start=start, end=end, session=session, progress=False)
-    except Exception:
-        df = pd.DataFrame()
-        
-    # วิธีที่ 2: ถ้าวิธีแรกติดขัดหรือส่งตารางว่างกลับมา ให้สลับไปดึงข้อมูลผ่าน Ticker ประวัติศาสตร์แบบปกติ
-    if df.empty:
-        try:
-            ticker_obj = yf.Ticker(ticker, session=session)
-            df = ticker_obj.history(start=start, end=end)
-        except Exception:
-            df = pd.DataFrame()
-        
+    ticker_obj = yf.Ticker(ticker, session=session)
+    df = ticker_obj.history(start=start, end=end)
     return df
-
-# --- ปรับแต่งสไตล์ CSS ให้เป็นธีม Dark Terminal ---
-st.markdown("""
-    <style>
-        .stApp { background-color: #0e1117; }
-        .stMetricValue { color: white !important; font-weight: bold; }
-        .stMetricLabel { color: #8a99ad !important; }
-        .term-badge { background-color: rgba(59, 130, 246, 0.15); color: #3b82f6; border-radius: 4px; padding: 3px 8px; font-weight: bold; font-size: 11px; }
-        .term-badge-trend { background-color: rgba(16, 185, 129, 0.15); color: #10b981; border-radius: 4px; padding: 3px 8px; font-weight: bold; font-size: 11px; }
-        .term-card { border: 1px solid #202632; padding: 20px; border-radius: 8px; background-color: #161b22; margin-bottom: 15px; }
-        .undervalued { color: #4ade80; font-weight: bold; }
-        .overvalued { color: #f87171; font-weight: bold; }
-    </style>
-""", unsafe_allow_html=True)
 
 # --- ส่วนหัวโปรแกรม (Header) ---
 head_col1, head_col2 = st.columns([1, 11])
 with head_col1:
-    st.image("logo.png", width=65)
+    try:
+        st.image("logo.png", width=65)
+    except:
+        st.write("🌕") # ใส่ไอคอนสำรองกรณีไม่มีไฟล์ภาพในเซิร์ฟเวอร์
 with head_col2:
     st.markdown("<h2 style='margin:0;'>DOOHUN <span style='font-weight:300; color:#6e7681;'>| มาดูหุ้นกัน By W_bxss</span></h2>", unsafe_allow_html=True)
     st.markdown("<p style='margin:0; color:#8b949e; font-size:14px;'>ทำกำไร และ To TheMoon🌕</p>", unsafe_allow_html=True)
@@ -87,7 +73,7 @@ with head_col2:
 st.write("---")
 
 # --- คานรายการหุ้นโปรด (Quick Watchlist) ---
-st.write("⭐ **หุ้นโปรดทีสนใจ**")
+st.write("⭐ **หุ้นโปรดที่สนใจ**")
 wl_cols = st.columns(6)
 wl_tickers = ["RKLB", "JNJ", "XOM", "ASTS", "AMZN", "MU"]
 clicked_ticker = None
@@ -101,48 +87,29 @@ for i, tkr in enumerate(wl_tickers):
 search_input = st.text_input("🔍 พิมพ์ชื่อตัวย่อหุ้นที่ต้องการค้นหา (เช่น TSLA, AAPL, RKLB, PTT.BK):", "RKLB")
 target_ticker = (clicked_ticker if clicked_ticker else search_input).upper().strip()
 
-# ดึงข้อมูลย้อนหลัง 1 ปี (มิ.ย. 2025 - มิ.ย. 2026)
+# ดึงข้อมูลย้อนหลัง 1 ปี
 start_date = datetime.date(2025, 6, 2)
 end_date = datetime.date(2026, 6, 2)
 
 if target_ticker:
-    data_loaded = False
-    df = pd.DataFrame()
-
-    with st.spinner('กำลังเชื่อมต่อข้อมูลทางการเงินและคำนวณเทคนิคอล...'):
-        try:
-            # ดึงข้อมูลผ่านระบบฟังก์ชันคุ้มกัน
+    try:
+        with st.spinner('กำลังดึงข้อมูลและคำนวณเทคนิคอลจากระบบคลาวด์...'):
             raw_df = get_cached_stock_data(target_ticker, start_date, end_date)
             
-            if raw_df is not None and not raw_df.empty:
-                # แก้ไขปัญหาหัวตาราง MultiIndex (ซ้อนสองชั้น) ที่มักเกิดขึ้นใน yfinance รุ่นใหม่ๆ
-                if isinstance(raw_df.columns, pd.MultiIndex):
-                    raw_df.columns = raw_df.columns.droplevel(1)
+            if raw_df.empty:
+                st.error(f"❌ ไม่พบข้อมูลสำหรับหุ้นสัญลักษณ์ '{target_ticker}' หรือระบบ Yahoo Finance ปฏิเสธการเชื่อมต่อชั่วคราว")
+                st.stop()
                 
-                df = calculate_indicators(raw_df)
-                df = df.dropna()
-                if not df.empty:
-                    data_loaded = True
-                else:
-                    st.warning("⚠️ โครงสร้างข้อมูลหุ้นมีจำนวนไม่เพียงพอในการประมวลผลอินดิเคเตอร์ทางเทคนิค")
-            else:
-                # แสดงข้อความเตือนอย่างสวยงาม เป็นมืออาชีพ แทนการปล่อยให้ระบบพังหน้าจอแดง
-                st.error("❌ ไม่สามารถเข้าถึงข้อมูลได้ในขณะนี้: สัญลักษณ์หุ้นอาจไม่ถูกต้อง หรือระบบ Yahoo Finance ปฏิเสธการเชื่อมต่อจาก Cloud Server")
-                st.info("💡 **คำแนะนำผู้พัฒนา:** เนื่องจากระบบคลาวด์แชร์ IP ร่วมกันทำให้โดนจำกัดสิทธิ์บ่อย หากเจอปัญหานี้ แนะนำให้เปิดรันไฟล์นี้ในเครื่องคอมพิวเตอร์ส่วนตัวของคุณ (Local) จะทำงานได้ราบรื่นเสถียร 100% ครับ")
-                
-        except Exception as e:
-            st.error(f"⚠️ เกิดข้อผิดพลาดในระบบจัดเตรียมข้อมูล: {e}")
-            st.info("💡 คำแนะนำ: ลองกดปุ่มเปลี่ยนสัญลักษณ์หุ้นเป็นตัวอื่นเพื่อรีเฟรชการเชื่อมต่อสัญญาณ")
+            df = calculate_indicators(raw_df)
+            df = df.dropna()
 
-    # ปิดบล็อกป้องกัน: ระบบจะวาดกราฟและคำนวณต่อเมื่อโหลดข้อมูลมาได้สำเร็จเท่านั้น ไม่พังกลางทางแน่นอน
-    if data_loaded:
         # สรุปข้อมูลราคาปัจจุบัน
         last_close = df['Close'].iloc[-1]
         prev_close = df['Close'].iloc[-2]
         change_pct = ((last_close - prev_close) / prev_close) * 100
         last_date = df.index[-1].strftime('%d/%m/%Y')
 
-        # คำนวณแนวรับ-แนวต้านอัตโนมัติจากข้อมูลดิบย้อนหลัง
+        # คำนวณแนวรับ-แนวต้านอัตโนมัติ
         res2 = df['High'].rolling(30).max().iloc[-1]
         res1 = df['High'].rolling(15).max().iloc[-1]
         sup1 = df['Low'].rolling(15).min().iloc[-1]
@@ -166,9 +133,7 @@ if target_ticker:
 
         st.write("---")
 
-        # =========================================================================
-        # --- แบ่งหน้าจอเป็น 2 คอลัมน์หลักเพื่อความสมดุล [ซ้าย: กราฟเทคนิคัล | ขวา: ข้อมูลและมูลค่า] ---
-        # =========================================================================
+        # --- จัดสัดส่วนเลย์เอาต์หน้าจอ [ซ้าย: กราฟเทคนิคัล | ขวา: ข้อมูลและมูลค่า] ---
         left_layout, right_layout = st.columns([12, 8], gap="large")
 
         # --- คอลัมน์ซ้าย: กราฟเทคนิคอลเต็มรูปแบบ ---
@@ -184,7 +149,7 @@ if target_ticker:
             fig.add_trace(go.Scatter(x=df.index, y=df['EMA12'], line=dict(color='#d69e2e', width=1.2), name='EMA 12 (ระยะสั้น)'), row=1, col=1)
             fig.add_trace(go.Scatter(x=df.index, y=df['EMA26'], line=dict(color='#10b981', width=1.2), name='EMA 26 (ระยะกลาง)'), row=1, col=1)
 
-            # ใส่เส้นแนวรับแนวต้าน และจัดตำแหน่งข้อความป้ายชื่อให้ขยับไปทางขวาตามแกนเวลาจริง
+            # ใส่เส้นแนวรับแนวต้าน
             levels = [
                 {'y': res2, 'color': '#f87171', 'label': 'แนวต้าน 2'},
                 {'y': res1, 'color': '#ffa3a3', 'label': 'แนวต้าน 1'},
@@ -193,13 +158,12 @@ if target_ticker:
             ]
             
             annotation_date = df.index[-1] + pd.Timedelta(days=3)
-            
             for lvl in levels:
                 fig.add_hline(y=lvl['y'], line_dash="dash", line_color=lvl['color'], line_width=1, row=1, col=1)
                 fig.add_annotation(x=annotation_date, y=lvl['y'], text=f" {lvl['label']} (${lvl['y']:,.2f})",
                                    showarrow=False, xanchor="left", font=dict(size=10, color=lvl['color']), row=1, col=1)
 
-            # แรเงาโซนแนวรับด้านล่าง โดยระบุพิกัด x0 และ x1 เป็นวันเวลาจริง เพื่อไม่ให้แกนเวลาเพี้ยนไปปี 1970
+            # แรเงาโซนแนวรับด้านล่าง
             fig.add_shape(type="rect", x0=df.index[0], y0=df['Low'].min()*0.98, x1=df.index[-1], y1=sup2,
                           fillcolor="rgba(16, 185, 129, 0.03)", line=dict(width=0), row=1, col=1)
 
@@ -213,7 +177,7 @@ if target_ticker:
             fig.add_hline(y=70, line_dash="dash", line_color="#ef4444", row=3, col=1, line_width=1)
             fig.add_hline(y=30, line_dash="dash", line_color="#10b981", row=3, col=1, line_width=1)
 
-            # ตั้งค่าเลย์เอาต์กราฟทั้งหมดให้สะอาด คมชัด
+            # ตั้งค่าเลย์เอาต์กราฟทั้งหมด
             fig.update_layout(
                 template="plotly_dark", height=680, xaxis_rangeslider_visible=False,
                 margin=dict(l=10, r=90, t=10, b=10),
@@ -229,9 +193,8 @@ if target_ticker:
 
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
-        # --- คอลัมน์ขวา: กล่องข้อมูลธุรกิจ, DCF และเป้าหมายโบรกเกอร์ ---
+        # --- คอลัมน์ขวา: กล่องข้อมูลธุรกิจ และการประเมินมูลค่า ---
         with right_layout:
-            
             # 1. กล่องลักษณะธุรกิจ
             st.markdown("<p style='color:#8b949e; font-weight:bold; margin-bottom:5px;'>ℹ️ ลักษณะการประกอบธุรกิจ (Business)</p>", unsafe_allow_html=True)
             with st.container():
@@ -246,11 +209,9 @@ if target_ticker:
 
             # 2. กล่องมูลค่าพื้นฐาน DCF
             st.markdown("<p style='color:#8b949e; font-weight:bold; margin-bottom:5px;'>💎 มูลค่าตามหลักทฤษฎี (DCF Fair Value)</p>", unsafe_allow_html=True)
-            
             dcf_fair_price = 19.07 if target_ticker == "RKLB" else last_close * 0.85
             
             with st.container():
-                valuation_status = ""
                 if last_close > dcf_fair_price:
                     pct_over = ((last_close - dcf_fair_price) / dcf_fair_price) * 100
                     valuation_status = f"<span class='overvalued'>🔴 ราคาสูงเกินพื้นฐานคำนวณ (Overvalued) {pct_over:.1f}%</span>"
@@ -269,7 +230,7 @@ if target_ticker:
                     </div>
                 """, unsafe_allow_html=True)
 
-            # 3. กรอบราคาเหมาะสมจากโบรกเกอร์ และ คะแนน Performance
+            # 3. ราคาเหมาะสมจากโบรกเกอร์
             st.markdown("<p style='color:#8b949e; font-weight:bold; margin-bottom:5px;'>🎯 กรอบราคาเหมาะสมจากโบรกเกอร์ (Broker Target)</p>", unsafe_allow_html=True)
             with st.container():
                 broker_target = 134.63 if target_ticker == "RKLB" else last_close * 1.1
@@ -287,5 +248,8 @@ if target_ticker:
                 st.markdown("<div class='term-card' style='padding-bottom:25px;'>", unsafe_allow_html=True)
                 st.progress(score_val, text=f"คะแนนความสามารถในการทำกำไรและความปลอดภัยทางบัญชี: {score_val*10:.1f}/10")
                 st.markdown("</div>", unsafe_allow_html=True)
+
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการประมวลผลข้อมูลระบบ: {e}")
 else:
-    st.info("กรุณาเลือกหรือพิมพ์ชื่อสัญลักษณ์หุ้นที่ต้องการระบบประมวลผลข้อมูล")
+    st.info("กรุณาเลือกหรือพิมพ์ชื่อสัญลักษณ์หุ้นที่ต้องการให้ระบบประมวลผลข้อมูล")
