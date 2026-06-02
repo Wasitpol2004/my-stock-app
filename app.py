@@ -75,8 +75,8 @@ company_info = {
 head_col1, head_col2 = st.columns([1, 12])
 with head_col1:
     # ดึงโลโก้ผ่าน URL ปลอดภัยจากอาการมีเดียเออร์เรอร์บน Cloud
-    #st.image("https://img.icons8.com/external-flatart-icons-flat-flatarticons/64/external-chart-web-development-and-programming-flatart-icons-flat-flatarticons.png", width=55)
-#with head_col2:
+    st.image("https://img.icons8.com/external-flatart-icons-flat-flatarticons/64/external-chart-web-development-and-programming-flatart-icons-flat-flatarticons.png", width=55)
+with head_col2:
     st.markdown("<h1 style='margin:0; font-size:28px; font-weight:800; color:#ffffff;'>DOOHUN <span style='font-size:16px; color:#58a6ff; font-weight:normal;'>| Intelligent Stock Terminal vPro</span></h1>", unsafe_allow_html=True)
     st.markdown("<p style='margin:0; color:#8b949e; font-size:14px;'>ระบบวิเคราะห์ข้อมูลเทคนิคคอลและมูลค่าพื้นฐานแบบเรียลไทม์ (โหมดมืดสนิท)</p>", unsafe_allow_html=True)
 
@@ -115,6 +115,11 @@ def load_stock_data(symbol, period):
         df = yf.download(symbol, period=period)
         if df.empty:
             return None
+        
+        # 🌟 แก้ปัญหา MultiIndex จาก yfinance เวอร์ชันใหม่ตั้งแต่ต้นทางตรงนี้เลยครับ
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.droplevel(1)
+            
         # คำนวณอินดิเคเตอร์ด้วย pandas ดิบๆ แก้ปัญหา ModuleNotFoundError บนเซิร์ฟเวอร์
         df['MA50'] = df['Close'].rolling(window=50).mean()
         df['EMA200'] = df['Close'].ewm(span=200, adjust=False).mean()
@@ -123,10 +128,9 @@ def load_stock_data(symbol, period):
         return None
 
 df_data = load_stock_data(target_ticker, time_map[time_frame])
-df_data is not None and len(df_data) > 0:
-if isinstance(df_data['Close'], pd.DataFrame):
-    current_price = float(df_data['Close'].iloc[-1].iloc[0])
-else:
+
+# 🌟 ใส่คำว่า if และจัดระเบียบย่อหน้าโค้ดที่เหลือทั้งหมดให้ทำงานอยู่ภายใต้เงื่อนไขนี้
+if df_data is not None and len(df_data) > 0:
     current_price = float(df_data['Close'].iloc[-1])
     prev_price = float(df_data['Close'].iloc[-2])
     price_diff = current_price - prev_price
@@ -239,7 +243,7 @@ else:
             unsafe_allow_html=True
         )
         
-        # สถานะเปรียบเทียบกับราคาตลาดปัจจุบัน
+        # Status เปรียบเทียบราคาตลาดปัจจุบัน
         if current_price > intrinsic_value:
             diff_pct = ((current_price - intrinsic_value) / intrinsic_value) * 100 if intrinsic_value > 0 else 0
             st.markdown(f"<p style='color:#f85149; text-align:center; font-size:12px; font-weight:bold;'>🔴 ราคาเกินพื้นฐานที่คำนวณได้ (Overvalued) {diff_pct:.1f}%</p>", unsafe_allow_html=True)
