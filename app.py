@@ -57,7 +57,7 @@ with head_col2:
 st.write("---")
 
 # --- คานรายการหุ้นโปรด (Quick Watchlist) ---
-st.write("⭐ **หุ้นโปรดทีสนใจ **")
+st.write("⭐ **หุ้นโปรดทีสนใจ**")
 wl_cols = st.columns(6)
 wl_tickers = ["RKLB", "JNJ", "XOM", "ASTS", "AMZN", "MU"]
 clicked_ticker = None
