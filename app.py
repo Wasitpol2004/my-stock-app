@@ -3,6 +3,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
+import os  # นำเข้าเครื่องมือตรวจสอบไฟล์ในระบบ
 
 # 1. ตั้งค่าหน้าจอแบบกว้างพิเศษเพื่อรองรับระบบ Dashboard หน้าเดียว
 st.set_page_config(page_title="DOOHUN Terminal", layout="wide", initial_sidebar_state="collapsed")
@@ -106,11 +107,16 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================================
-# HEADER WITH LOGO IMAGE (ใช้ภาพ t-30-3.jpg เป็นโลโก้เว็บอย่างเป็นทางการ)
+# HEADER WITH LOGO IMAGE (Safe-Mode ป้องกันหน้าเว็บล่มถาวร)
 # =========================================================================
 col_logo, col_title = st.columns([1, 12])
 with col_logo:
-    st.image("t-30-3.jpg", width=65)
+    # เช็คก่อนว่าในโปรเจกต์มีไฟล์ภาพจริงไหม ถ้าไม่มีให้สลับไปใช้อิโมจิแทนเพื่อไม่ให้ขึ้นหน้าแดง
+    if os.path.exists("t-30-3.jpg"):
+        st.image("t-30-3.jpg", width=65)
+    else:
+        st.markdown("<h1 style='margin:0; text-align:center; padding-top:5px;'>📈</h1>", unsafe_allow_html=True)
+
 with col_title:
     st.markdown("""
         <div style="padding-top: 5px;">
@@ -126,7 +132,7 @@ st.write("---")
 # =========================================================================
 st.markdown("<span style='color:#64748b; font-size:12px; font-weight:600; display:block; margin-bottom:5px;'>⭐ หุ้นโปรดของคุณ (Quick Watchlist):</span>", unsafe_allow_html=True)
 watchlist_tickers = ["RKLB", "JNJ", "XOM", "ASTS", "AMZN", "MU"]
-w_cols = st.columns(len(watchlist_tickers) + 2) # เผื่อช่องว่างด้านท้าย
+w_cols = st.columns(len(watchlist_tickers) + 2)
 
 for idx, sym in enumerate(watchlist_tickers):
     with w_cols[idx]:
@@ -149,7 +155,6 @@ ticker = ticker_input.upper().strip()
 
 if ticker:
     try:
-        # โหลดข้อมูลดิบย้อนหลังผ่าน yfinance
         stock_data = yf.Ticker(ticker)
         df = stock_data.history(period=period_map[time_frame])
         
@@ -159,7 +164,6 @@ if ticker:
             try: info = stock_data.info
             except: info = {}
 
-            # ฟังก์ชันคำนวณราคาและข้อมูลดิบ
             current_price = info.get('currentPrice') or info.get('regularMarketPrice') or df['Close'].iloc[-1]
             prev_close = info.get('previousClose') or (df['Close'].iloc[-2] if len(df) > 1 else current_price)
             price_change = current_price - prev_close
@@ -172,11 +176,9 @@ if ticker:
             currency = info.get('currency', 'USD')
             last_date_str = df.index[-1].strftime('%d/%m/%Y')
 
-            # คำนวณแนวรับ-แนวต้านอัตโนมัติ (High-Low Window 20 วันล่าสุด)
             recent_high = df['High'].tail(20).max()
             recent_low = df['Low'].tail(20).min()
 
-            # ตรวจสอบทิศทางเทรนด์ด้วยค่าเฉลี่ยสัญญานเคลื่อนที่ MA50
             df['MA50'] = df['Close'].rolling(window=min(50, len(df))).mean()
             last_ma50 = df['MA50'].iloc[-1] if not df['MA50'].isna().all() else current_price
             
@@ -211,11 +213,10 @@ if ticker:
             """, unsafe_allow_html=True)
 
             # =========================================================================
-            # SECTION 2: ALL-IN-ONE GRID LAYOUT (3 คอลัมน์กว้าง 5:4:3)
+            # SECTION 2: ALL-IN-ONE GRID LAYOUT
             # =========================================================================
             col_chart, col_dcf, col_metrics = st.columns([5, 4, 3])
 
-            # --- คอลัมน์ที่ 1: กราฟเทคนิคัลอัจฉริยะ ---
             with col_chart:
                 st.markdown('<div class="crypto-card">', unsafe_allow_html=True)
                 st.markdown("<h4 style='margin-top:0; color:#38bdf8; font-size:15px;'>📈 กราฟความเคลื่อนไหวและเส้นค่าเฉลี่ย</h4>", unsafe_allow_html=True)
@@ -239,7 +240,6 @@ if ticker:
                 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
                 st.markdown('</div>', unsafe_allow_html=True)
 
-            # --- คอลัมน์ที่ 2: ระบบคำนวณมูลค่าแท้จริง DCF ---
             with col_dcf:
                 st.markdown('<div class="crypto-card">', unsafe_allow_html=True)
                 st.markdown("<h4 style='margin-top:0; color:#c084fc; font-size:15px;'>💎 เครื่องประเมินราคาเหมาะสม (DCF Valuation)</h4>", unsafe_allow_html=True)
@@ -250,7 +250,7 @@ if ticker:
                 input_fcf = st.number_input("กระแสเงินสดอิสระ (Free Cash Flow):", value=float(raw_fcf), format="%.0f")
                 input_shares = st.number_input("จำนวนหุ้นจดทะเบียนทั้งหมด (Shares):", value=float(raw_shares), format="%.0f")
                 
-                growth_rate = st.slider("การเติบโต 5 ปีข้างหน้า (Growth %):", 0.0, 40.0, 12.0, 0.5) / 100
+                growth_rate = st.slider("การเติบต่อ 5 ปีข้างหน้า (Growth %):", 0.0, 40.0, 12.0, 0.5) / 100
                 wacc_rate = st.slider("คิดลดความเสี่ยงบริษัท (WACC %):", 5.0, 20.0, 8.5, 0.5) / 100
 
                 if input_shares > 0 and wacc_rate > 0.02:
@@ -277,7 +277,6 @@ if ticker:
                         st.warning(f"🔴 แพงกว่าพื้นฐาน (Overvalued) เกินราคาเป้าหมาย {abs(upside):.1f}%")
                 st.markdown('</div>', unsafe_allow_html=True)
 
-            # --- คอลัมน์ที่ 3: เป้าหมายนักวิเคราะห์ & สแกนสุขภาพการเงิน ---
             with col_metrics:
                 st.markdown('<div class="crypto-card">', unsafe_allow_html=True)
                 st.markdown("<h4 style='margin-top:0; color:#f1f5f9; font-size:14px;'>🎯 ความเห็นของโบรกเกอร์ (Wall St)</h4>", unsafe_allow_html=True)
@@ -303,7 +302,6 @@ if ticker:
                 """, unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
 
-                # การ์ดคะแนนพื้นฐาน
                 st.markdown('<div class="crypto-card" style="padding: 14px 20px;">', unsafe_allow_html=True)
                 roe = info.get('returnOnEquity', 0.09) * 100
                 p_score = int(max(10, min(99, 50 + roe)))
@@ -322,9 +320,6 @@ if ticker:
                 """, unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
 
-            # =========================================================================
-            # SECTION 3: BOTTOM BUSINESS INSIGHT
-            # =========================================================================
             st.markdown('<div class="crypto-card">', unsafe_allow_html=True)
             st.markdown("<h4 style='margin-top:0; font-size:13px; color:#64748b; font-weight:600;'>ℹ️ ลักษณะการประกอบธุรกิจและรายได้บริษัท (Business Insight)</h4>", unsafe_allow_html=True)
             summary = info.get('longBusinessSummary', 'ขออภัย ระบบไม่พบข้อมูลรายละเอียดธุรกิจของสัญลักษณ์นี้')
