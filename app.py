@@ -209,11 +209,11 @@ if df_data is not None and len(df_data) > 0:
         st.markdown("<span style='font-weight:bold; font-size:15px; color:#58a6ff;'>💎 โมเดลประเมินมูลค่าหุ้นส่วนลดกระแสเงินสด (DCF)</span>", unsafe_allow_html=True)
         
         # ฟอร์มอินพุตปรับแต่งตัวเลขแบบ Interactive ตามรูปเป้าหมาย
-        fcf_val = st.number_input("กระแสเงินสดอิสระ (FCF):", value=500000000, step=50000000)
-        shares_val = st.number_input("หุ้นจดทะเบียนทั้งหมด (Shares):", value=400000000, step=10000000)
+        #fcf_val = st.number_input("กระแสเงินสดอิสระ (FCF):", value=500000000, step=50000000)
+       # shares_val = st.number_input("หุ้นจดทะเบียนทั้งหมด (Shares):", value=400000000, step=10000000)
         
-        grow_slider = st.slider("การเติบโตต่อเนื่อง 5 ปี (%):", 0.0, 30.0, 10.0, 0.5)
-        wacc_slider = st.slider("ต้นทุนความเสี่ยง WACC (%):", 5.0, 20.0, 9.0, 0.5)
+        #grow_slider = st.slider("การเติบโตต่อเนื่อง 5 ปี (%):", 0.0, 30.0, 10.0, 0.5)
+        #wacc_slider = st.slider("ต้นทุนความเสี่ยง WACC (%):", 5.0, 20.0, 9.0, 0.5)
 
         # การคำนวณทางทฤษฎี DCF
         r = wacc_slider / 100.0
