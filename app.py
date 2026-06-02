@@ -5,8 +5,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import datetime
 
-st.image("logo.png", width=60)
-
 # --- ตั้งค่าหน้าจอเปิดกว้างแบบสมดุล ---
 st.set_page_config(layout="wide", page_title="DOOHUN - Stock Terminal")
 
