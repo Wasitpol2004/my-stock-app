@@ -76,7 +76,7 @@ head_col1, head_col2 = st.columns([1, 12])
 with head_col1:
     # ดึงโลโก้ผ่าน URL ปลอดภัยจากอาการมีเดียเออร์เรอร์บน Cloud
     #st.image("https://img.icons8.com/external-flatart-icons-flat-flatarticons/64/external-chart-web-development-and-programming-flatart-icons-flat-flatarticons.png", width=55)
-with head_col2:
+#with head_col2:
     st.markdown("<h1 style='margin:0; font-size:28px; font-weight:800; color:#ffffff;'>DOOHUN <span style='font-size:16px; color:#58a6ff; font-weight:normal;'>| Intelligent Stock Terminal vPro</span></h1>", unsafe_allow_html=True)
     st.markdown("<p style='margin:0; color:#8b949e; font-size:14px;'>ระบบวิเคราะห์ข้อมูลเทคนิคคอลและมูลค่าพื้นฐานแบบเรียลไทม์ (โหมดมืดสนิท)</p>", unsafe_allow_html=True)
 
