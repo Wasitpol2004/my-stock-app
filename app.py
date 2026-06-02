@@ -108,11 +108,16 @@ if target_ticker:
     data_loaded = False
     df = pd.DataFrame()
 
-    # บล็อกดึงข้อมูลแบบปลอดภัย (ปิดจบตัวมันเองทันที ไม่ลากยาวไปคลุม UI)
+    if target_ticker:
+    # ประกาศตัวแปรสถานะเริ่มต้นก่อนเข้าบล็อกโหลดข้อมูล
+    data_loaded = False
+    df = pd.DataFrame()
+
+    # บล็อกดึงข้อมูลแบบปลอดภัยผ่านระบบหน่วยความจำจำลอง
     try:
         with st.spinner('กำลังดึงข้อมูลและคำนวณเทคนิคอล...'):
-            ticker_obj = yf.Ticker(target_ticker)
-            raw_df = ticker_obj.history(start=start_date, end=end_date)
+            # เปลี่ยนมาเรียกใช้ฟังก์ชัน get_cached_stock_data ที่เราเพิ่งสร้างขึ้นใหม่
+            raw_df = get_cached_stock_data(target_ticker, start_date, end_date)
             
             if raw_df.empty:
                 st.error(f"ไม่พบข้อมูลสำหรับหุ้นสัญลักษณ์ '{target_ticker}' กรุณาตรวจสอบตัวย่ออีกครั้ง")
