@@ -123,7 +123,7 @@ def load_stock_data(symbol, period):
         return None
 
 df_data = load_stock_data(target_ticker, time_map[time_frame])
-if df_data is not None and len(df_data) > 0:
+df_data is not None and len(df_data) > 0:
 if isinstance(df_data['Close'], pd.DataFrame):
     current_price = float(df_data['Close'].iloc[-1].iloc[0])
 else:
